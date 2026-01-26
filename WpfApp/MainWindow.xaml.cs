@@ -1,0 +1,14 @@
+﻿using System.Text.Json.Nodes;
+using System.Windows;
+
+namespace WpfApp
+{
+  public partial class MainWindow : Window
+  {
+    public MainWindow()
+    {
+      InitializeComponent();
+      DataContext = new MainViewModel();
+    }
+  }
+}
