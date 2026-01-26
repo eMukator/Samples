@@ -25,9 +25,9 @@ namespace WpfApp
     void LoadDefaultData(object parameter)
     {
       Items.Clear();
-      Items.Add(new ItemModel { Id = 1, Title = "Fruit", Description = "Something to eat" });
-      Items.Add(new ItemModel { Id = 2, Title = "Hammer", Description = "Something to work with" });
-      Items.Add(new ItemModel { Id = 3, Title = "Hunger", Description = "Something to feel it" });
+      Items.Add(new ItemModel { Id = 1, Title = "Blip", Description = "Something to almost notice" });
+      Items.Add(new ItemModel { Id = 2, Title = "Flarp", Description = "Something to pretend you use" });
+      Items.Add(new ItemModel { Id = 3, Title = "Zindle", Description = "Something to keep around for no reason" });
     }
 
     [RelayCommand]
@@ -36,7 +36,7 @@ namespace WpfApp
       var id = Items.Any()
         ? Items.Max(x => x.Id) + 1
         : 1;
-      var item = new ItemModel { Id = id, Title = "<new>", Description = "<description>" };
+      var item = new ItemModel { Id = id, Title = $"<title_{id}>", Description = $"<description_{id}>" };
       Items.Add(item);
       Edit(item);
     }
