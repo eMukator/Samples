@@ -19,7 +19,7 @@ namespace WpfApp
       DataContext = EditedItem;
     }
 
-    private void Save_Click(object sender, RoutedEventArgs e)
+    void Save_Click(object sender, RoutedEventArgs e)
     {
       DialogResult = true;
       Close();

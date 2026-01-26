@@ -1,5 +1,5 @@
-﻿using System.Text.Json.Nodes;
-using System.Windows;
+﻿using System.Windows;
+using System.Windows.Input;
 
 namespace WpfApp
 {
@@ -10,5 +10,12 @@ namespace WpfApp
       InitializeComponent();
       DataContext = new MainViewModel();
     }
+
+    void ListView_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+      if (DataContext is MainViewModel vm && vm.SelectedItem is not null)
+        vm.EditCommand.Execute(vm.SelectedItem);
+    }
+
   }
 }

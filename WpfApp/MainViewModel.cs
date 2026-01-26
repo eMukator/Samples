@@ -1,10 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.Text.Json;
-using System.Threading.Channels;
-using System.Windows.Input;
 
 namespace WpfApp
 {
@@ -39,7 +36,9 @@ namespace WpfApp
       var id = Items.Any()
         ? Items.Max(x => x.Id) + 1
         : 1;
-      Items.Add(new ItemModel { Id = id, Title = "<new>", Description = "<description>" });
+      var item = new ItemModel { Id = id, Title = "<new>", Description = "<description>" };
+      Items.Add(item);
+      Edit(item);
     }
 
     [RelayCommand(CanExecute = nameof(CanEditOrRemove))]
@@ -71,7 +70,7 @@ namespace WpfApp
     }
 
     [RelayCommand]
-    private void SaveToJson()
+    void SaveToJson()
     {
       var options = new JsonSerializerOptions { WriteIndented = true };
       var json = JsonSerializer.Serialize(Items, options);
@@ -79,7 +78,7 @@ namespace WpfApp
     }
 
     [RelayCommand]
-    private void LoadFromJson() {
+    void LoadFromJson() {
       if (!System.IO.File.Exists("items.json"))
         return;
       var json = System.IO.File.ReadAllText("items.json");
