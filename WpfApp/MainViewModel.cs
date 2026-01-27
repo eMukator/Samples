@@ -2,6 +2,8 @@
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
 using System.Text.Json;
+using System.Windows;
+using WpfApp.Behaviors;
 
 namespace WpfApp
 {
@@ -88,6 +90,31 @@ namespace WpfApp
       Items.Clear();
       foreach (var item in loaded)
         Items.Add(item);
+    }
+
+    [RelayCommand]
+    void Reorder(ReorderRequest req)
+    {
+      var source = (ItemModel)req.Source;
+      var target = (ItemModel)req.Target;
+
+      int oldIndex = Items.IndexOf(source);
+      int targetIndex = Items.IndexOf(target);
+
+      int newIndex = req.DropAbove ? targetIndex : targetIndex + 1;
+
+      if (newIndex > oldIndex)
+        newIndex--;
+
+      if (newIndex != oldIndex)
+        Items.Move(oldIndex, newIndex);
+    }
+
+
+    [RelayCommand]
+    void Help()
+    {
+      MessageBox.Show("Help yourself", "Help", MessageBoxButton.OK);
     }
 
   }

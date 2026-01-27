@@ -4,15 +4,15 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:WpfApp"
+        xmlns:behaviors="clr-namespace:WpfApp.Behaviors"
         mc:Ignorable="d"
         Title="Sample app" Height="450" Width="800">
-  
+
   <Window.DataContext>
     <local:MainViewModel/>
   </Window.DataContext>
 
-  <Grid>
-    <DockPanel>
+  <DockPanel>
       <Menu x:Name="menu" DockPanel.Dock="Top">
         <MenuItem Header="_File">
           <MenuItem Header="_Dummy" Command="{Binding LoadDefaultDataCommand}" />
@@ -22,7 +22,7 @@
           <Separator />
           <MenuItem Header="E_xit" Command="{Binding ExitCommand}" />
         </MenuItem>
-        <MenuItem Header="_Help" />
+        <MenuItem Header="_Help" Command="{Binding HelpCommand}" />
       </Menu>
       
       <Grid>
@@ -30,22 +30,55 @@
           <RowDefinition Height="*" />
           <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        
-        <ListBox x:Name="listBox" d:ItemsSource="{d:SampleData ItemCount=5}" ItemsSource="{Binding Items}"
+         
+        <ListBox x:Name="listBox" d:ItemsSource="{d:SampleData ItemCount=7}" ItemsSource="{Binding Items}"
                  SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
-                 PreviewMouseDoubleClick="ListView_MouseDoubleClick">
-          <ListBox.ItemTemplate>
-            <DataTemplate>
-              <StackPanel Orientation="Horizontal" Margin="5">
-                <TextBlock Text="{Binding Id}" Margin="0,0,5,0" />
-                <StackPanel>
-                  <TextBlock Text="{Binding Title}" FontWeight="Bold"/>
-                  <TextBlock Text="{Binding Description}" Foreground="Gray"/>
-                </StackPanel>
+                 PreviewMouseDoubleClick="ListView_MouseDoubleClick"
+                 behaviors:DragDropBehavior.ReorderCommand="{Binding ReorderCommand}">
+        <ListBox.ItemContainerStyle>
+          <Style TargetType="ListBoxItem">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+
+            <Setter Property="Template">
+              <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                  <Grid>
+                    <Border x:Name="Above" Height="2" Background="#4A90E2" VerticalAlignment="Top" Visibility="Collapsed"/>
+                    <Border x:Name="Below" Height="2" Background="#4A90E2" VerticalAlignment="Bottom" Visibility="Collapsed"/>
+                    <Border x:Name="Bd" Padding="4" Background="Transparent">
+                      <ContentPresenter Margin="0"/>
+                    </Border>
+                  </Grid>
+                  <ControlTemplate.Triggers>
+                    <Trigger Property="behaviors:DragDropBehavior.IsDropAbove" Value="True">
+                      <Setter TargetName="Above" Property="Visibility" Value="Visible"/>
+                    </Trigger>
+                    <Trigger Property="behaviors:DragDropBehavior.IsDropBelow" Value="True">
+                      <Setter TargetName="Below" Property="Visibility" Value="Visible"/>
+                    </Trigger>
+                    <Trigger Property="IsSelected" Value="True">
+                      <Setter TargetName="Bd" Property="Background" Value="#CDE5FF"/>
+                      <Setter Property="Foreground" Value="Black"/>
+                    </Trigger>
+                  </ControlTemplate.Triggers>
+                </ControlTemplate>
+              </Setter.Value>
+            </Setter>
+          </Style>
+        </ListBox.ItemContainerStyle>
+
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <StackPanel Background="Transparent" Width="Auto" Grid.Row="1" Orientation="Horizontal" Margin="5">
+              <TextBlock Text="{Binding Id}" Margin="0,0,5,0" />
+              <StackPanel>
+                <TextBlock Text="{Binding Title}" FontWeight="Bold"/>
+                <TextBlock Text="{Binding Description}" Foreground="Gray"/>
               </StackPanel>
-            </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Left" Margin="10">
           <Button Padding="10,2" Margin="0,0,10,0" Command="{Binding AddCommand}" CommandParameter="{Binding SelectedItem}">Add</Button>
@@ -55,5 +88,4 @@
       </Grid>
 
     </DockPanel>
-  </Grid>
 </Window>
