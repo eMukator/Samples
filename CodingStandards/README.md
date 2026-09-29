@@ -36,6 +36,39 @@ Sady pravidel (Markdown) pro promptování AI asistentů. Stačí v promptu odk�
 
 - [CLAUDE.prompt.md](CLAUDE.prompt.md): prompt pro vygenerování stručného `CLAUDE.md` k repozitáři (průzkum repa, otázky, max ~60 řádků).
 
+## Claude Code: agenti a manažer
+
+Složka [claude](claude/) obsahuje subagenty a slash command pro řízený vývoj:
+
+| Soubor | Role |
+|---|---|
+| [agents/vyvojar.md](claude/agents/vyvojar.md) | Implementuje jeden přesně vymezený úkol |
+| [agents/tester.md](claude/agents/tester.md) | Nezávisle ověří splnění úkolu (funkčně i kvalitativně) |
+| [agents/ui-ux.md](claude/agents/ui-ux.md) | Posoudí UI z hlediska použitelnosti, konzistence a přístupnosti |
+| [commands/manager.md](claude/commands/manager.md) | Rozloží zadání na úkoly a řídí smyčku vývojář → tester (→ ui-ux), commit po každém úkolu |
+
+### Instalace
+
+Globálně (pro všechny projekty) zkopírovat do `~/.claude/` (na Windows `%USERPROFILE%\.claude\`):
+
+```powershell
+Copy-Item CodingStandards\claude\agents\*.md   $HOME\.claude\agents\
+Copy-Item CodingStandards\claude\commands\*.md $HOME\.claude\commands\
+```
+
+Jen pro jeden projekt zkopírovat do `.claude/agents/` a `.claude/commands/` v kořeni daného repa. Po zkopírování restartovat Claude Code; kontrola přes `/agents` (výpis agentů) a `/` (nabídka commandů).
+
+### Použití
+
+1. Sepsat zadání do Markdown souboru, např. `zadani.md`.
+2. V Claude Code spustit:
+   ```
+   /manager zadani.md
+   ```
+3. Manažer sám kód nečte ani needituje: rozloží zadání na úkoly, volá `vyvojar`, výsledek ověří `tester` (u UI úkolů i `ui-ux`), po úspěchu nechá commitnout. Po 3 neúspěšných pokusech na stejném úkolu se zastaví a čeká na instrukce.
+
+Agenty lze volat i samostatně, např. „nech agenta tester ověřit poslední změny".
+
 ## Použití v promptu
 
 ```
