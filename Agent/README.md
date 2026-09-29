@@ -29,7 +29,7 @@ Soubory `demo1.txt`–`demo3.txt` slouží k vyzkoušení.
 
 ## Příklad session
 
-Skutečný běh s `ai/llama3.2` (Docker Model Runner), `AGENT_ROOT` ukazuje na kopii demo souborů.
+Skutečný běh s `ai/llama3.2` (Docker Model Runner).
 
 | Model | |
 |---|---|
@@ -41,7 +41,7 @@ Skutečný běh s `ai/llama3.2` (Docker Model Runner), `AGENT_ROOT` ukazuje na k
 
 ```
 Model: ai/llama3.2 @ http://localhost:12434/engines/v1
-Pracovní adresář: C:\@DEV\Samples\.scratch\run
+Pracovní adresář: C:\Samples\Agent
 Příkazy: /new = nová konverzace, /exit = konec
 
 Ty> Hello! Who are you?
