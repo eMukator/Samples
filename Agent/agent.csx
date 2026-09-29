@@ -204,6 +204,113 @@ JsonArray NewConversation() => new JsonArray
 
 var messages = NewConversation();
 
+JsonArray CopyOf(JsonArray array) => JsonNode.Parse(array.ToJsonString())!.AsArray();
+
+// Přidá odpověď modelu a naši reakci na ni.
+void AddExchange(JsonArray work, string reply, string userContent)
+{
+    work.Add(new JsonObject { ["role"] = "assistant", ["content"] = reply });
+    work.Add(new JsonObject { ["role"] = "user", ["content"] = userContent });
+}
+
+// Důvod, proč volání odmítnout; null = volání lze provést.
+string RejectReason(string name, JsonNode args, bool canWrite)
+{
+    if (name != "write_file") return null;
+    if (!canWrite)
+        return "write_file is not available: the user did not ask to write a file.";
+    // Model neumí "přečti a zapiš" naplánovat a vnoří čtení do zápisu (content: "read_file").
+    if (args["parameters"] != null || toolNames.Contains(args["content"]?.ToString()))
+        return "Invalid write: content must be the real text. First call read_file for the files you need, " +
+               "then in your NEXT reply call write_file with the actual text you read.";
+    return null;
+}
+
+// Provede volání jednoho kola. Vrací výsledky kola pro model, null = jen opakovaná volání (model se cyklí).
+string RunRound(List<(string Name, JsonNode Args)> calls, bool canWrite, HashSet<string> seen, StringBuilder results)
+{
+    var roundResults = new StringBuilder();
+    bool anyNew = false;
+    foreach (var (name, args) in calls)
+    {
+        var argsJson = args.ToJsonString();
+        Console.WriteLine($"[nástroj] {name} {argsJson}");
+
+        string result;
+        if (!seen.Add(name + argsJson))
+            result = "This call was already made, its result is above. Do not repeat it.";
+        else
+        {
+            anyNew = true;
+            result = RejectReason(name, args, canWrite);
+            if (result == null)
+            {
+                result = ExecuteTool(name, args);
+                results.Append($"{name} {argsJson}:\n{result}\n\n");
+            }
+        }
+        var preview = result.Length > 200 ? result.Substring(0, 200) + "..." : result;
+        Console.WriteLine($"[výsledek] {preview.Replace("\n", " | ")}");
+        roundResults.Append($"{name} {argsJson}:\n{result}\n\n");
+    }
+    return anyNew ? roundResults.ToString() : null;
+}
+
+// Odpověď bez nástrojů, s dosavadními výsledky jako textem (po limitu kol nebo cyklení).
+async Task<string> ForcedAnswer(string input, StringBuilder results)
+{
+    var final = CopyOf(messages);
+    final[final.Count - 1] = new JsonObject
+    {
+        ["role"] = "user",
+        ["content"] = $"{input}\n\n[Tool results]\n{results}" +
+                      "Answer my request above using these results. Do not make anything up."
+    };
+    return await Chat(final);
+}
+
+// Práce s nástroji běží nad pracovní kopií; do historie jdou jen dotaz + finální odpověď,
+// jinak model v dalších kolech napodobuje formát výsledků a vymýšlí si falešné.
+async Task<string> AnswerWithTools(string input)
+{
+    bool canWrite = writeIntent.IsMatch(input);
+    var work = CopyOf(messages);
+    work[0] = new JsonObject { ["role"] = "system", ["content"] = systemPrompt + ToolPrompt(canWrite) };
+    var seen = new HashSet<string>();
+    var results = new StringBuilder();
+    bool nudged = false;
+    string answer = null;
+
+    for (int round = 0; round < MaxToolRounds; round++)
+    {
+        var reply = await Chat(work);
+        var calls = ToolCalls(reply);
+        if (calls.Count == 0 && results.Length == 0 && !nudged)
+        {
+            // Model občas obsah souboru rovnou vymyslí; jednou ho postrčíme k nástroji.
+            nudged = true;
+            AddExchange(work, reply,
+                "You did not use any tool. Never guess file names or contents. If my request needs " +
+                "file data, reply now with ONLY the JSON tool call. Otherwise repeat your answer.");
+            continue;
+        }
+        if (calls.Count == 0) { answer = reply; break; }
+
+        var roundResults = RunRound(calls, canWrite, seen, results);
+        if (roundResults == null) break;
+        AddExchange(work, reply, $"[Tool results]\n{roundResults}" +
+            "Call more tools only if you still need something. Otherwise answer my request " +
+            $"\"{input}\" in plain text, using these results.");
+    }
+
+    answer ??= await ForcedAnswer(input, results);
+
+    // Víc kroků (přečti -> zapiš) llama3.2 nedotáhne a pak odpoví, jako by bylo hotovo.
+    if (canWrite && !results.ToString().Contains("Zapsáno "))
+        Console.WriteLine("\n[pozor] Požadovaný zápis neproběhl, žádný soubor se nezměnil.");
+    return answer;
+}
+
 Console.WriteLine($"Model: {model} @ {baseUrl}");
 Console.WriteLine($"Pracovní adresář: {root}");
 Console.WriteLine("Příkazy: /new = nová konverzace, /exit = konec");
@@ -211,11 +318,9 @@ Console.WriteLine("Příkazy: /new = nová konverzace, /exit = konec");
 while (true)
 {
     Console.Write("\nTy> ");
-    var input = Console.ReadLine();
-    if (input == null) break;
-    input = input.Trim();
+    var input = Console.ReadLine()?.Trim();
+    if (input is null or "/exit" or "/quit") break;
     if (input.Length == 0) continue;
-    if (input is "/exit" or "/quit") break;
     if (input == "/new")
     {
         messages = NewConversation();
@@ -225,105 +330,9 @@ while (true)
 
     int checkpoint = messages.Count;
     messages.Add(new JsonObject { ["role"] = "user", ["content"] = input });
-
     try
     {
-        string answer = null;
-        var results = new StringBuilder();
-
-        if (fileIntent.IsMatch(input))
-        {
-            // Práce s nástroji běží nad pracovní kopií; do historie jdou jen dotaz + finální odpověď,
-            // jinak model v dalších kolech napodobuje formát výsledků a vymýšlí si falešné.
-            bool canWrite = writeIntent.IsMatch(input);
-            var work = JsonNode.Parse(messages.ToJsonString())!.AsArray();
-            work[0] = new JsonObject { ["role"] = "system", ["content"] = systemPrompt + ToolPrompt(canWrite) };
-            var seen = new HashSet<string>();
-            bool nudged = false;
-
-            for (int round = 0; round < MaxToolRounds; round++)
-            {
-                var reply = await Chat(work);
-                var calls = ToolCalls(reply);
-                if (calls.Count == 0 && results.Length == 0 && !nudged)
-                {
-                    // Model občas obsah souboru rovnou vymyslí; jednou ho postrčíme k nástroji.
-                    nudged = true;
-                    work.Add(new JsonObject { ["role"] = "assistant", ["content"] = reply });
-                    work.Add(new JsonObject { ["role"] = "user", ["content"] =
-                        "You did not use any tool. Never guess file names or contents. If my request needs " +
-                        "file data, reply now with ONLY the JSON tool call. Otherwise repeat your answer." });
-                    continue;
-                }
-                if (calls.Count == 0)
-                {
-                    answer = reply;
-                    break;
-                }
-
-                var roundResults = new StringBuilder();
-                bool anyNew = false;
-                foreach (var (name, args) in calls)
-                {
-                    var argsJson = args.ToJsonString();
-                    Console.WriteLine($"[nástroj] {name} {argsJson}");
-
-                    string result;
-                    if (!seen.Add(name + argsJson))
-                        result = "This call was already made, its result is above. Do not repeat it.";
-                    else
-                    {
-                        anyNew = true;
-                        if (name == "write_file" && !canWrite)
-                            result = "write_file is not available: the user did not ask to write a file.";
-                        // Model neumí "přečti a zapiš" naplánovat a vnoří čtení do zápisu (content: "read_file").
-                        else if (name == "write_file" && (args["parameters"] != null || toolNames.Contains(args["content"]?.ToString())))
-                            result = "Invalid write: content must be the real text. First call read_file for the files you need, " +
-                                     "then in your NEXT reply call write_file with the actual text you read.";
-                        else
-                        {
-                            result = ExecuteTool(name, args);
-                            results.Append($"{name} {argsJson}:\n{result}\n\n");
-                        }
-                    }
-                    var preview = result.Length > 200 ? result.Substring(0, 200) + "..." : result;
-                    Console.WriteLine($"[výsledek] {preview.Replace("\n", " | ")}");
-                    roundResults.Append($"{name} {argsJson}:\n{result}\n\n");
-                }
-
-                // Model jen opakuje stejná volání = cyklí se.
-                if (!anyNew) break;
-
-                work.Add(new JsonObject { ["role"] = "assistant", ["content"] = reply });
-                work.Add(new JsonObject
-                {
-                    ["role"] = "user",
-                    ["content"] = $"[Tool results]\n{roundResults}" +
-                                  "Call more tools only if you still need something. Otherwise answer my request " +
-                                  $"\"{input}\" in plain text, using these results."
-                });
-            }
-
-            // Limit kol nebo cyklení: odpověď vynutíme bez nástrojů, s dosavadními výsledky jako textem.
-            if (answer == null)
-            {
-                var final = JsonNode.Parse(messages.ToJsonString())!.AsArray();
-                final[final.Count - 1] = new JsonObject
-                {
-                    ["role"] = "user",
-                    ["content"] = $"{input}\n\n[Tool results]\n{results}" +
-                                  "Answer my request above using these results. Do not make anything up."
-                };
-                answer = await Chat(final);
-            }
-
-            // Víc kroků (přečti -> zapiš) llama3.2 nedotáhne a pak odpoví, jako by bylo hotovo.
-            if (canWrite && !results.ToString().Contains("Zapsáno "))
-                Console.WriteLine("\n[pozor] Požadovaný zápis neproběhl, žádný soubor se nezměnil.");
-        }
-        else
-            answer = await Chat(messages);
-
+        var answer = fileIntent.IsMatch(input) ? await AnswerWithTools(input) : await Chat(messages);
         messages.Add(new JsonObject { ["role"] = "assistant", ["content"] = answer });
         Console.WriteLine("\nModel> " + answer);
     }
