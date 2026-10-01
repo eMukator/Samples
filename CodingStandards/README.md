@@ -1,18 +1,34 @@
 # CodingStandards
 
-Sady pravidel (Markdown) pro promptování AI asistentů. Stačí v promptu odkázat na `index.md` příslušné sady. Každý `index.md` obsahuje rychlou kontrolu a seznam modulů.
+Sady pravidel (Markdown) pro promptování AI asistentů. Stačí v promptu odkázat na `index.md` příslušné sady. Každý `index.md` obsahuje rychlou kontrolu a seznam modulů. Přehled všech sad je v [index.md](index.md).
 
 ## Backend / .NET
 
 | Sada | Obsah |
 |---|---|
-| [csharp](csharp/index.md) | Pojmenování, async/await bez `async void`, nullable reference types, žádné magic strings, specifické výjimky, architektura, unit testy |
+| [csharp](csharp/index.md) | Pojmenování (`_camelCase` fieldy, PascalCase konstanty), async/await bez `async void`, nullable reference types, žádné magic strings, specifické výjimky, architektura, unit testy s fake implementacemi místo mocků |
 | [api-design](api-design/index.md) | REST URL v kebab-case, HTTP status kódy, RFC 9457 ProblemDetails, cursor paginace, FluentValidation, verzování v URL |
 | [database-ef](database-ef/index.md) | EF Core migrace, indexy na FK, soft delete přes query filter, audit columns, AsNoTracking, žádné N+1 |
+| [blazor](blazor/index.md) | Interactive Server: vědomý render mode, prerendering bez dvojího načítání, DbContext přes factory, žádný HttpContext v komponentách, dispose odběrů, InvokeAsync, sticky sessions |
 | [environment-config](environment-config/index.md) | User Secrets / Key Vault, strongly-typed options s ValidateOnStart, Docker jako non-root, health probes |
 | [observability](observability/index.md) | Serilog se strukturovaným logováním, bez PII, CorrelationId, health checks, OpenTelemetry |
+| [performance](performance/index.md) | Nejdřív měřit (dotnet-counters, BenchmarkDotNet), async až dolů, alokace v hot paths (Span, ArrayPool), FrozenDictionary, source generatory, HybridCache, output cache, streamování |
+| [resilience](resilience/index.md) | IHttpClientFactory + `AddStandardResilienceHandler`, retry jen pro přechodné chyby, circuit breaker, timeouty, EF execution strategy, Idempotency-Key, fallback |
 | [email-notifications](email-notifications/index.md) | Outbox pattern, plain-text alternativa, unsubscribe, SPF/DKIM/DMARC, hard bounce |
 | [security](security/index.md) | OWASP Top 10: injection, CSP/HSTS hlavičky, CSRF, CORS, rate limiting, bezpečné uploady, závislosti |
+
+## Architektura & návrh
+
+| Sada | Obsah |
+|---|---|
+| [design-principles](design-principles/index.md) | SOLID v moderním C#, composition over inheritance, Law of Demeter, feature cohesion, YAGNI / KISS / DRY, kdy interface s jednou implementací |
+| [design-patterns](design-patterns/index.md) | GoF vzory idiomaticky v .NET 8+ (DI, keyed services, Scrutor decorator, specification, state, middleware), ke každému „kdy ne" |
+| [clean-architecture](clean-architecture/index.md) | Rozhodovací tabulka stylů, závislosti dovnitř, porty a adaptéry, `internal` jako výchozí, architektonické testy (NetArchTest) |
+| [ddd](ddd/index.md) | Bohatý model bez public setterů, value objects jako record, strongly-typed IDs, malé agregáty, repository per aggregate, domain events, bounded contexts a ACL |
+| [cqrs](cqrs/index.md) | Command vs. query, jeden handler = jeden use case, decoratory pro validaci a logování, vertical slices, MediatR/AutoMapper jen po licenčním rozhodnutí |
+| [modular-monolith](modular-monolith/index.md) | Modul = bounded context, vlastní DbContext a schéma, komunikace přes `*.Contracts` a integration events, bez transakcí přes moduly, cesta k mikroslužbě |
+| [event-driven](event-driven/index.md) | Domain vs. integration events, aditivní verzování kontraktů, Outbox/Inbox, retry + DLQ, choreografie vs. sagy, event sourcing jen vědomě |
+| [adr](adr/index.md) | Architecture Decision Records v `docs/adr/`, šablona, přijatý ADR se nemění, ale nahrazuje; AI agent ADR čte před architektonickou změnou |
 
 ## Frontend / web
 
@@ -28,7 +44,7 @@ Sady pravidel (Markdown) pro promptování AI asistentů. Stačí v promptu odk�
 | Sada | Obsah |
 |---|---|
 | [nasa](nasa/index.md) | NASA JPL 10 pravidel (Holzmann) adaptovaná pro C#/JS: omezené smyčky, krátké funkce, assertions, kontrola návratových hodnot |
-| [testing-advanced](testing-advanced/index.md) | Testovací pyramida, AAA, Builder pro testovací data, integrační testy, Testcontainers, fake místo mocků |
+| [testing-advanced](testing-advanced/index.md) | Testovací pyramida, unit vs. integrační test podle vrstvy, fake místo mocků, determinismus (FakeTimeProvider), Builder, WebApplicationFactory, Testcontainers, bUnit pro Blazor, coverage po vrstvách, mutační testy |
 | [git-cicd](git-cicd/index.md) | Conventional Commits, prefixy větví, squash merge, CI pipeline, žádné secrets v commitu |
 | [external-apis](external-apis/index.md) | Reference externích služeb (Mapy.com Tile API: URL, jazyky, rate limit) |
 
