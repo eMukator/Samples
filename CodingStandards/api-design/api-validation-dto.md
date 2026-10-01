@@ -44,12 +44,18 @@ public class OrderItemValidator : AbstractValidator<CreateOrderItemRequest>
 
 ```csharp
 // Program.cs — registrace
-builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<CreateOrderRequestValidator>();
-
-// Automaticky vrátí 400 + ProblemDetails při validační chybě
-// Není třeba volat ModelState.IsValid v controllerech
 ```
+
+Kde validaci spouštět — **jen na jednom místě**:
+
+| Projekt | Spuštění validátoru |
+|---------|---------------------|
+| CQRS (handlery) | `ValidationDecorator` kolem command handlerů (viz `cqrs/cqrs-pipeline.md`) |
+| Minimal API bez CQRS | Endpoint filter volající `IValidator<T>` |
+| MVC controllery | `AddFluentValidationAutoValidation()` — balíček `FluentValidation.AspNetCore` je autory označen jako zastaralý a funguje jen pro MVC; pro nový kód preferuj variantu výše |
+
+✗ Auto-validace v MVC **a zároveň** validační decorator — dvojí validace, dva formáty chyb.
 
 ### Manuální validace ve service (pro business rules)
 
@@ -144,31 +150,9 @@ public record OrderDto(
 
 ## Idempotency — bezpečné opakování požadavků
 
-```csharp
-// ✓ Idempotency-Key header pro POST operace (platby, objednávky)
-[HttpPost]
-public async Task<ActionResult<OrderDto>> Create(
-    CreateOrderRequest request,
-    [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
-    CancellationToken ct)
-{
-    if (idempotencyKey is not null)
-    {
-        // Zkontroluj cache — byl tento požadavek již zpracován?
-        var cached = await _idempotencyCache.GetAsync(idempotencyKey, ct);
-        if (cached is not null)
-            return Ok(cached);  // vrať stejný výsledek
-    }
+POST operace s dopadem (platby, objednávky) přijímají hlavičku `Idempotency-Key`. Implementace viz `resilience/res-idempotency.md`.
 
-    var order = await _orderService.CreateAsync(request, ct);
-
-    if (idempotencyKey is not null)
-        await _idempotencyCache.SetAsync(idempotencyKey, order,
-            TimeSpan.FromHours(24), ct);
-
-    return CreatedAtAction(nameof(GetById), new { id = order.Id }, order);
-}
-```
+✗ Prostá cache „klíč → odpověď" kontrolovaná před zpracováním — dva souběžné požadavky se stejným klíčem projdou oba, klíč není vázaný na uživatele a nekontroluje se shoda těla požadavku.
 
 ---
 

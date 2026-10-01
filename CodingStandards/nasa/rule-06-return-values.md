@@ -16,12 +16,9 @@ var task = _emailService.SendConfirmationAsync(order);  // stále ignorováno
 // ✓ Await vždy
 await _emailService.SendConfirmationAsync(order, ct);
 
-// ✓ Pokud skutečně chceš fire-and-forget (vědomé rozhodnutí):
-// Okomentuj proč, ošetři výjimku
-_ = _emailService.SendConfirmationAsync(order)
-    .ContinueWith(
-        t => _logger.LogError(t.Exception, "Failed to send confirmation for order {Id}", order.Id),
-        TaskContinuationOptions.OnlyOnFaulted);
+// ✓ Pokud práce nemá blokovat request: nespouštěj Task bez await,
+//   ale zařaď ji do Outboxu (nesmí se ztratit) nebo Channel<T> (smí se ztratit)
+//   — viz csharp/async.md, event-driven/ed-outbox-inbox.md
 ```
 
 ### Result pattern — explicitní ošetření chyb

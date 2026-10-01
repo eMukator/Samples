@@ -81,6 +81,8 @@ public TreeNode? SearchIterative(TreeNode root, int value)
 
 ### Timeouty pro všechny I/O operace
 
+HTTP klienti a SDK volání: timeout řeš resilience pipeline (`AddStandardResilienceHandler`, `AddTimeout`) — viz `resilience/`. Ruční `CancelAfter` níže jen tam, kde pipeline není (vlastní smyčky, jednorázové operace). ✗ Nekombinuj obojí na stejném volání.
+
 ```csharp
 // ✓ Vždy nastav timeout pro externí volání
 using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);

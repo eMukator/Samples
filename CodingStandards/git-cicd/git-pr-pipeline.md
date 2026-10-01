@@ -23,6 +23,8 @@ Closes #123
 - [ ] Žádné secrets v kódu
 - [ ] DB migrace přidána (pokud schéma změněno)
 - [ ] CLAUDE.md aktualizován (pokud architektura změněna)
+- [ ] ADR přidán v `docs/adr/` (pokud jde o architektonické rozhodnutí — viz `adr/`)
+- [ ] Architektonické testy prochází (pokud projekt používá — viz `clean-architecture/`)
 
 ## Jak testovat
 <!-- Kroky pro reviewera k ověření změny -->

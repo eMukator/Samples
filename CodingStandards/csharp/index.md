@@ -20,4 +20,5 @@ Platí pro všechny C# soubory v projektu. Při každé změně kódu dodržuj V
 - [ ] Výjimky jsou specifické, nikdy `catch (Exception e) {}`  bez důvodu
 - [ ] Nullable reference types jsou zapnuty (`<Nullable>enable</Nullable>`)
 - [ ] Žádné magic strings/numbers — použij konstanty nebo enums
-- [ ] Unit testy pro každou novou business logiku
+- [ ] Unit testy pro každou novou business logiku — fake implementace místo mocků (viz `testing.md`)
+- [ ] Privátní fieldy `_camelCase`, `const` a `static readonly` PascalCase

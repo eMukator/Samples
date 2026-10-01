@@ -97,9 +97,10 @@ _logger.LogInformation("Order {OrderId} created by {UserId}", order.Id, userId);
 _logger.LogInformation($"Order {order.Id} created by {userId}");
 // → Uloží jen jako string: "Order 42 created by abc"
 
-// ✓ Složité objekty — destrukturuj s @
-_logger.LogInformation("Processing {@Order}", order);
-// → Serializuje celý objekt, ne jen ToString()
+// ✓ Složité objekty — destrukturuj s @, ale jen malé DTO bez PII
+_logger.LogInformation("Processing {@OrderSummary}", new { order.Id, order.Status, LineCount = order.Lines.Count });
+// → Serializuje objekt, ne jen ToString()
+// ✗ {@Order} / {@Command} s celou entitou nebo commandem — PII, velikost logu, lazy-loading navigací
 
 // ✓ Správné úrovně
 _logger.LogTrace("Cache lookup for key {Key}: {Hit}", key, hit ? "HIT" : "MISS");

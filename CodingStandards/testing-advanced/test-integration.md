@@ -48,8 +48,9 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>, IAsyn
                 options.UseSqlServer(_dbContainer.GetConnectionString()));
 
             // Nahraď external services fake implementacemi
-            services.RemoveAll<IEmailService>();
-            services.AddSingleton<IEmailService, FakeEmailService>();
+            // Nahrazuje se fyzické odesílání, ne outbox (IEmailService) — viz email-notifications/
+            services.RemoveAll<ISmtpEmailService>();
+            services.AddSingleton<ISmtpEmailService, FakeEmailService>();
 
             services.RemoveAll<IPaymentGateway>();
             services.AddSingleton<IPaymentGateway, FakePaymentGateway>();
@@ -197,7 +198,7 @@ public class IntegrationCollection : ICollectionFixture<CustomWebApplicationFact
 
 ```csharp
 // FakeEmailService.cs — zachytí odeslané emaily pro assertion
-public class FakeEmailService : IEmailService
+public class FakeEmailService : ISmtpEmailService
 {
     private readonly ConcurrentBag<EmailMessage> _sent = new();
 
@@ -212,17 +213,22 @@ public class FakeEmailService : IEmailService
     public void Clear() => _sent.Clear();
 }
 
-// Použití v testu
+// Použití v testu — FakeEmailService nahrazuje FYZICKÉ odesílání (ISmtpEmailService),
+// IEmailService (OutboxEmailService) zůstává reálný
 [Fact]
-public async Task CreateOrder_SendsConfirmationEmail()
+public async Task CreateOrder_EnqueuesConfirmationEmail()
 {
-    var emailService = factory.Services.GetRequiredService<IEmailService>() as FakeEmailService;
-    emailService!.Clear();
-
     await _client.PostAsJsonAsync("/api/v1/orders", validRequest);
 
-    emailService.SentMessages.Should().HaveCount(1);
-    emailService.SentMessages[0].To.Should().Be("jan@example.com");
-    emailService.SentMessages[0].Subject.Should().Contain("Potvrzení objednávky");
+    // E-mail je v outboxu — uložen atomicky s objednávkou (email-notifications/)
+    using var scope = factory.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var queued = await db.OutboxEmails.SingleAsync(e => e.To == "jan@example.com");
+    queued.Subject.Should().Contain("Potvrzení objednávky");
+    queued.SentAt.Should().BeNull();
 }
 ```
+
+Odeslání z outboxu testuj zvlášť: zavolej jednu iteraci `OutboxEmailJob` a ověř `FakeEmailService.SentMessages`.
+
+> ⚠ Při náhradě `DbContext` ve `ConfigureTestServices` zachovej interceptory (domain events, audit). Ruční `RemoveAll` + nové `AddDbContext` je zahodí a testy pak neověřují dispatch událostí. Od EF Core 9 změň jen connection string přes `services.ConfigureDbContext<AppDbContext>(o => o.UseSqlServer(...))`, nebo předej connection string přes konfiguraci (`builder.UseSetting("ConnectionStrings:Default", ...)`).

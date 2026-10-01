@@ -8,6 +8,17 @@
 - Nikdy nevolej `throw ex` (maže stack trace) — vždy jen `throw`
 - Custom výjimky dědí z `Exception`, mají suffix `Exception`
 
+### Výjimka vs. Result
+
+| Situace | Mechanismus |
+|---------|-------------|
+| Očekávaný business výsledek (nenalezeno, nedostatek zboží, konflikt stavu) | `Result` s typovaným `Error` (viz `cqrs/cqrs-basics.md`) |
+| Porušení doménového invariantu | `DomainException` (viz `ddd/ddd-tactical.md`) → 422 |
+| Nevalidní vstup | `ValidationException` z validátoru → 400 |
+| Infrastrukturní chyba (DB, síť), programátorská chyba | Výjimka → globální handler → 500 |
+
+Custom výjimky níže (`OrderNotFoundException`, `InsufficientStockException`) jsou pro projekty bez Result patternu. V projektech s CQRS vracej tyto stavy jako `Result`.
+
 ```csharp
 // ✓ Specifická výjimka
 try
@@ -64,32 +75,9 @@ public class InsufficientStockException(string productSku, int requested, int av
 
 ## Global exception handling v ASP.NET Core
 
-```csharp
-// Program.cs
-app.UseExceptionHandler(errorApp =>
-{
-    errorApp.Run(async context =>
-    {
-        var exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
-        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+Použij `IExceptionHandler` s odpovědí ve formátu RFC 9457 ProblemDetails — kompletní implementace viz `api-design/api-versioning-errors-pagination.md` (`GlobalExceptionHandler`).
 
-        var (statusCode, message) = exception switch
-        {
-            OrderNotFoundException ex => (StatusCodes.Status404NotFound, ex.Message),
-            ValidationException ex    => (StatusCodes.Status400BadRequest, ex.Message),
-            UnauthorizedAccessException => (StatusCodes.Status403Forbidden, "Přístup odepřen"),
-            _                         => (StatusCodes.Status500InternalServerError, "Interní chyba serveru")
-        };
-
-        if (statusCode == 500)
-            logger.LogError(exception, "Unhandled exception");
-
-        context.Response.StatusCode = statusCode;
-        context.Response.ContentType = "application/json";
-        await context.Response.WriteAsJsonAsync(new { error = message });
-    });
-});
-```
+✗ Vlastní JSON formát chyb (`new { error = message }`) — klienti pak musí zpracovávat dva formáty.
 
 ## Logging
 
@@ -114,14 +102,10 @@ _logger.LogInformation("Order {OrderId} created for customer {CustomerId}",
 // ✗ String interpolace v logu — ztráta struktury, zbytečná alokace
 _logger.LogInformation($"Order {order.Id} created for customer {order.CustomerId}");
 
-// ✓ LoggerMessage.Define pro výkonnostně kritické cesty (eliminuje alokace)
-private static readonly Action<ILogger, int, Exception?> _orderCreated =
-    LoggerMessage.Define<int>(
-        LogLevel.Information,
-        new EventId(1001, "OrderCreated"),
-        "Order {OrderId} created successfully");
-
-_orderCreated(_logger, order.Id, null);
+// ✓ [LoggerMessage] source generator pro výkonnostně kritické cesty (eliminuje alokace)
+//   — nahrazuje ruční LoggerMessage.Define; viz observability/obs-logging.md
+[LoggerMessage(EventId = 1001, Level = LogLevel.Information, Message = "Order {OrderId} created successfully")]
+private partial void LogOrderCreated(int orderId);
 
 // ✓ Vždy loguj s kontextem — co se stalo, s jakými daty
 _logger.LogError(ex, "Failed to process payment for order {OrderId}, amount {Amount:C}",

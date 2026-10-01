@@ -38,10 +38,10 @@ var result = await _orderService.CreateAsync(request, ct);
 
 // ✓ Pokud reflexe je nezbytná (generické mapování, frameworková infrastruktura):
 // — použij ji pouze v inicializační fázi, výsledky cachuj
-private static readonly Dictionary<Type, PropertyInfo[]> _propertyCache = new();
+private static readonly ConcurrentDictionary<Type, PropertyInfo[]> PropertyCache = new();   // thread-safe
 
 private static PropertyInfo[] GetProperties(Type type)
-    => _propertyCache.GetOrAdd(type, t => t.GetProperties(BindingFlags.Public | BindingFlags.Instance));
+    => PropertyCache.GetOrAdd(type, t => t.GetProperties(BindingFlags.Public | BindingFlags.Instance));
 ```
 
 ### Podmíněná kompilace — pouze pro prostředí
@@ -76,6 +76,8 @@ internal partial class OrderJsonContext : JsonSerializerContext { }
 ```
 
 ### AutoMapper — s rozmyslem
+
+> Od 2025 je AutoMapper pod komerční licencí. V nových projektech mapuj ručně nebo source generatorem Mapperly (viz `design-principles/dp-pragmatism.md`). Pravidla níže platí pro existující projekty.
 
 ```csharp
 // AutoMapper je komfort, ale skrývá mapovací logiku. Pravidla:

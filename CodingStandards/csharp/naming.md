@@ -10,8 +10,9 @@
 | Enum hodnota | PascalCase | `OrderStatus.Pending` |
 | Veřejná property | PascalCase | `FirstName` |
 | Veřejná metoda | PascalCase | `GetOrderAsync` |
-| Privátní field | `_` + camelCase | `_orderRepository` |
-| Konstanta | PascalCase | `MaxRetryCount` |
+| Privátní field (instanční i mutable static) | `_` + camelCase | `_orderRepository`, `_activeCount` |
+| Konstanta (`const`) | PascalCase | `MaxRetryCount` |
+| `static readonly` field (jakákoli přístupnost) | PascalCase | `DefaultTimeout`, `HandlerCache` |
 | Lokální proměnná | camelCase | `orderTotal` |
 | Parametr | camelCase | `orderId` |
 | Generic type param | `T` nebo `T` + PascalCase | `T`, `TEntity` |
@@ -106,17 +107,24 @@ var url = "https://api.example.com/v1";
 private const int MaxRetryCount = 3;
 private const string ApiBaseUrl = "https://api.example.com/v1";
 
-// ✓ Správně — statická readonly pro komplexní hodnoty
+// ✓ Správně — statická readonly pro komplexní hodnoty (PascalCase jako konstanta)
 private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(30);
+```
+
+Pravidlo se řídí **modifikátory**, ne obsahem: `const` a `static readonly` → PascalCase, vše ostatní privátní → `_camelCase`. Díky tomu ho vynutí `.editorconfig` (viz `code-style.md`).
+
+```csharp
+// ✓ Mutable static — _camelCase, ale vyhýbej se mu (sdílený stav, viz nasa/rule-05-scope.md)
+private static int _activeCount;   // jen s Interlocked / lock
 ```
 
 ## Generics
 
 ```csharp
 // ✓ Správně — T pro jednoduché, popisné pro složité
-public interface IRepository<TEntity> where TEntity : class { }
+public interface IQueryHandler<in TQuery, TResult> { }
 public class Result<TValue, TError> { }
 
 // ✗ Špatně — nečitelné zkratky
-public interface IRepo<E> { }
+public interface IHandler<Q, R> { }
 ```

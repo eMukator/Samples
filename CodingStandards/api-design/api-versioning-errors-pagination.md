@@ -93,6 +93,7 @@ public class GlobalExceptionHandler(
             ValidationException ex      => (400, "validation-error",     ex.Message),
             NotFoundException ex        => (404, "not-found",             ex.Message),
             ConflictException ex        => (409, "conflict",              ex.Message),
+            DomainException ex          => (422, "domain-rule-violation", ex.Message),   // ddd/ddd-tactical.md
             RateLimitException          => (429, "rate-limit-exceeded",   "Příliš mnoho požadavků."),
             UnauthorizedAccessException => (403, "forbidden",             "Přístup odepřen."),
             _                           => (500, "internal-server-error", "Interní chyba serveru.")

@@ -5,7 +5,7 @@
 - Každá I/O operace musí být `async` — nikdy neblokuj vlákno synchronně
 - Async metody mají vždy suffix `Async`: `GetOrderAsync`, `SaveChangesAsync`
 - `CancellationToken` parametr na všech async veřejných metodách (výchozí hodnota `= default`)
-- Nikdy `async void` — výjimka: event handlery a lifecycle metody (Blazor `OnInitializedAsync`)
+- Nikdy `async void` — jediná výjimka: event handlery desktopových frameworků (WinForms/WPF), kde signatura `void` je vynucená. Blazor event handlery i lifecycle metody (`OnInitializedAsync`) vrací `Task` (viz `blazor/blazor-components.md`)
 
 ## Správné vzory
 
@@ -58,10 +58,11 @@ public async Task LoadDataAsync()
 // ✗ Nikdy — zapomenutý await (fire and forget bez ošetření)
 _emailService.SendEmailAsync(email);  // chyba je spolknuta
 
-// ✓ Pokud opravdu potřebuješ fire-and-forget, ošetři chyby
-_ = _emailService.SendEmailAsync(email)
-    .ContinueWith(t => _logger.LogError(t.Exception, "Email failed"),
-                  TaskContinuationOptions.OnlyOnFaulted);
+// ✓ Práce na pozadí, která se nesmí ztratit (e-mail, notifikace, integrace)
+//   → Outbox (email-notifications/, event-driven/ed-outbox-inbox.md)
+// ✓ Práce na pozadí, jejíž ztráta při restartu nevadí → Channel<T> + BackgroundService
+//   (event-driven/ed-events.md)
+// ✗ Task bez await v request pipeline — scope (DbContext) se po requestu disposne a task spadne
 ```
 
 ## Paralelní operace

@@ -151,10 +151,10 @@ public class OutboxEmail
     public DateTimeOffset? NextRetryAt  { get; set; }
 }
 
-// OutboxEmailService.cs — uloží do DB místo přímého odeslání
+// OutboxEmailService.cs — zařadí e-mail do outboxu místo přímého odeslání
 public class OutboxEmailService(AppDbContext context) : IEmailService
 {
-    public async Task<bool> SendAsync(EmailMessage message, CancellationToken ct)
+    public Task<bool> SendAsync(EmailMessage message, CancellationToken ct)
     {
         context.OutboxEmails.Add(new OutboxEmail
         {
@@ -164,10 +164,15 @@ public class OutboxEmailService(AppDbContext context) : IEmailService
             TextBody  = message.TextBody,
             CreatedAt = DateTimeOffset.UtcNow,
         });
-        await context.SaveChangesAsync(ct);
-        return true;  // uloženo, ještě neodesláno
+        // Žádné SaveChanges — e-mail se uloží ve STEJNÉ transakci jako business změna
+        // (handler volá SaveChangesAsync jednou na konci, viz cqrs/cqrs-basics.md).
+        // Rollback business změny = e-mail se neodešle.
+        return Task.FromResult(true);  // zařazeno, ještě neodesláno
     }
 }
+
+// V projektech s domain events: e-mail zařazuje handler domain eventu
+// (např. OrderConfirmed → potvrzovací e-mail), viz event-driven/ed-events.md.
 
 // OutboxEmailJob.cs — Background Service pro odesílání
 public class OutboxEmailJob(
@@ -216,7 +221,7 @@ public class OutboxEmailJob(
                 }, ct);
 
                 email.SentAt = now;
-                logger.LogInformation("Email sent to {To}: {Subject}", email.To, email.Subject);
+                logger.LogInformation("Outbox email {EmailId} sent", email.Id);   // ne adresu — PII (observability/)
             }
             catch (Exception ex)
             {
@@ -224,8 +229,8 @@ public class OutboxEmailJob(
                 email.LastError   = ex.Message;
                 // Exponenciální backoff: 5min, 30min, 2hod
                 email.NextRetryAt = now.AddMinutes(Math.Pow(6, email.RetryCount) * 5);
-                logger.LogWarning(ex, "Email send failed (attempt {N}/3) to {To}",
-                    email.RetryCount, email.To);
+                logger.LogWarning(ex, "Outbox email {EmailId} failed (attempt {N}/3)",
+                    email.Id, email.RetryCount);
             }
         }
 

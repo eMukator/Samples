@@ -127,7 +127,12 @@ public class OrderMetrics : IDisposable
     // Gauges — aktuální hodnota (fronta, připojení)
     private readonly ObservableGauge<int> _pendingOrdersGauge;
 
-    public OrderMetrics(IMeterFactory meterFactory, IOrderRepository repository)
+    // Hodnotu gauge aktualizuje BackgroundService (např. každých 30 s) — callback gauge nesmí
+    // dělat I/O a singleton nesmí injektovat scoped IOrderRepository (captive dependency)
+    private int _pendingOrders;
+    public void SetPendingOrders(int count) => Interlocked.Exchange(ref _pendingOrders, count);
+
+    public OrderMetrics(IMeterFactory meterFactory)
     {
         _meter = meterFactory.Create("MyApp.Orders");
 
@@ -156,7 +161,7 @@ public class OrderMetrics : IDisposable
 
         _pendingOrdersGauge = _meter.CreateObservableGauge(
             "orders.pending.count",
-            () => repository.GetPendingCountSync(),
+            () => Volatile.Read(ref _pendingOrders),
             description: "Počet čekajících objednávek");
     }
 
@@ -233,11 +238,11 @@ app.MapPrometheusScrapingEndpoint("/metrics")
 
 ```csharp
 // Vlastní Activity (span) pro business operace
-private static readonly ActivitySource _activitySource = new("MyApp.Orders");
+private static readonly ActivitySource OrdersActivitySource = new("MyApp.Orders");
 
 public async Task<OrderDto> ProcessOrderAsync(int orderId, CancellationToken ct)
 {
-    using var activity = _activitySource.StartActivity("ProcessOrder");
+    using var activity = OrdersActivitySource.StartActivity("ProcessOrder");
     activity?.SetTag("order.id", orderId);
 
     try

@@ -197,7 +197,29 @@ trim_trailing_whitespace = true
 insert_final_newline = true
 max_line_length = 120
 
-# Naming rules
+# Naming rules (viz naming.md)
+# Pořadí v souboru nerozhoduje — specifičtější pravidlo (víc modifikátorů) má přednost
+
+# const a static readonly → PascalCase
+dotnet_naming_rule.constants_should_be_pascal_case.symbols = constant_fields
+dotnet_naming_rule.constants_should_be_pascal_case.style = pascal_case_style
+dotnet_naming_rule.constants_should_be_pascal_case.severity = warning
+
+dotnet_naming_symbols.constant_fields.applicable_kinds = field
+dotnet_naming_symbols.constant_fields.applicable_accessibilities = *
+dotnet_naming_symbols.constant_fields.required_modifiers = const
+
+dotnet_naming_rule.static_readonly_should_be_pascal_case.symbols = static_readonly_fields
+dotnet_naming_rule.static_readonly_should_be_pascal_case.style = pascal_case_style
+dotnet_naming_rule.static_readonly_should_be_pascal_case.severity = warning
+
+dotnet_naming_symbols.static_readonly_fields.applicable_kinds = field
+dotnet_naming_symbols.static_readonly_fields.applicable_accessibilities = *
+dotnet_naming_symbols.static_readonly_fields.required_modifiers = static, readonly
+
+dotnet_naming_style.pascal_case_style.capitalization = pascal_case
+
+# ostatní privátní fieldy (instanční i mutable static) → _camelCase
 dotnet_naming_rule.private_fields_should_be_camel_case.symbols = private_fields
 dotnet_naming_rule.private_fields_should_be_camel_case.style = camel_case_underscore_style
 dotnet_naming_rule.private_fields_should_be_camel_case.severity = warning

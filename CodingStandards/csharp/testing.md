@@ -3,10 +3,28 @@
 ## Framework a knihovny
 
 - **xUnit** — test framework (výchozí pro .NET projekty)
-- **FluentAssertions** — čitelné assertions
-- **Moq** nebo **NSubstitute** — mockování
+- **FluentAssertions 7.x** — čitelné assertions. Verze 8+ je komerční; pro nové projekty bez licence zůstaň na 7.x nebo použij **Shouldly** (MIT)
+- **Fake implementace** — výchozí test double (viz níže)
+- **NSubstitute** — mock knihovna jen pro výjimky z pravidla níže. ✗ Moq v nových projektech (incident se SponsorLink, 2023)
+- **`Microsoft.Extensions.TimeProvider.Testing`** — `FakeTimeProvider` pro čas
 - **Bogus** — generování testovacích dat
 - **Testcontainers** — integrace s DB (Docker)
+
+## Test doubles — co kdy použít
+
+Jedno pravidlo pro celý projekt (stejné jako `testing-advanced/`):
+
+| Závislost | Test double |
+|-----------|-------------|
+| Doménový model, value objects, doménové služby | **Žádný** — testuj reálné objekty |
+| Databáze (repository, DbContext, query handlery) | **Testcontainers** — reálná DB, ne InMemory provider ani mock |
+| Vlastní porty k externím systémům (e-mail, platby, SMS, HTTP API) | **Fake** — jednoduchá in-memory implementace, sdílená všemi testy |
+| Repository v unit testu command handleru | **Fake** in-memory repository (`Dictionary` uvnitř) |
+| Čas | `FakeTimeProvider` |
+| Logger | `NullLogger<T>.Instance` (ověřování logů jen když je log požadavek — pak `FakeLogger<T>`) |
+| Simulace chyby, kterou fake neumí (timeout, výjimka v N-tém volání), nebo ověření, že se něco **nevolalo** | **NSubstitute** — výjimka, ne výchozí volba |
+
+Proč fake místo mocku: fake se píše jednou a chová se jako skutečná implementace; mock se nastavuje v každém testu znovu a testy pak ověřují implementaci místo chování (křehké při refaktoringu).
 
 ## Pojmenování testů
 
@@ -30,9 +48,7 @@ public async Task GetByIdAsync_WithValidId_ReturnsOrder()
 {
     // Arrange
     var orderId = 42;
-    var expectedOrder = new Order { Id = orderId, CustomerName = "Jan Novák", Total = 1500m };
-    _repositoryMock.Setup(r => r.GetByIdAsync(orderId, default))
-                   .ReturnsAsync(expectedOrder);
+    _repository.Add(new Order { Id = orderId, CustomerName = "Jan Novák", Total = 1500m });
 
     // Act
     var result = await _sut.GetByIdAsync(orderId);
@@ -48,15 +64,35 @@ public async Task GetByIdAsync_WithValidId_ReturnsOrder()
 ## Unit testy
 
 ```csharp
+// FakeOrderRepository.cs — v testovacím projektu, sdílený všemi testy
+// (implementuje celé rozhraní repository projektu; zde zkráceně)
+public sealed class FakeOrderRepository : IOrderRepository
+{
+    private readonly Dictionary<int, Order> _orders = [];
+
+    public void Add(Order order) => _orders[order.Id] = order;
+
+    public Task<Order?> GetByIdAsync(int id, CancellationToken ct = default)
+        => Task.FromResult(_orders.GetValueOrDefault(id));
+
+    public Task<IReadOnlyList<Order>> GetAllAsync(CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyList<Order>>([.. _orders.Values]);
+
+    public Task<Order> CreateAsync(Order order, CancellationToken ct = default)
+    {
+        _orders[order.Id] = order;
+        return Task.FromResult(order);
+    }
+}
+
 public class OrderServiceTests
 {
-    private readonly Mock<IOrderRepository> _repositoryMock = new();
-    private readonly Mock<ILogger<OrderService>> _loggerMock = new();
+    private readonly FakeOrderRepository _repository = new();
     private readonly OrderService _sut;
 
     public OrderServiceTests()
     {
-        _sut = new OrderService(_repositoryMock.Object, _loggerMock.Object);
+        _sut = new OrderService(_repository, NullLogger<OrderService>.Instance);
     }
 
     [Fact]
@@ -67,8 +103,7 @@ public class OrderServiceTests
             .RuleFor(o => o.Id, 1)
             .RuleFor(o => o.CustomerName, f => f.Name.FullName())
             .Generate();
-
-        _repositoryMock.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(order);
+        _repository.Add(order);
 
         // Act
         var result = await _sut.GetByIdAsync(1);
@@ -81,11 +116,22 @@ public class OrderServiceTests
     [Fact]
     public async Task GetByIdAsync_WithNonExistentId_ReturnsNull()
     {
-        _repositoryMock.Setup(r => r.GetByIdAsync(999, default)).ReturnsAsync((Order?)null);
-
         var result = await _sut.GetByIdAsync(999);
 
         result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenRepositoryTimesOut_PropagatesException()
+    {
+        // ✓ Výjimka z pravidla — chybový stav, který fake neumí → NSubstitute
+        var repository = Substitute.For<IOrderRepository>();
+        repository.GetByIdAsync(1, Arg.Any<CancellationToken>()).ThrowsAsync(new TimeoutException());
+        var sut = new OrderService(repository, NullLogger<OrderService>.Instance);
+
+        var act = () => sut.GetByIdAsync(1);
+
+        await act.Should().ThrowAsync<TimeoutException>();
     }
 
     [Theory]
@@ -167,6 +213,4 @@ public class OrderRepositoryIntegrationTests : IAsyncLifetime
 
 ## Coverage
 
-- Minimální coverage pro business logiku (Services, Domain): **80 %**
-- Repositories: pokryty integračními testy
-- Controllers: základní happy path + error cases
+Cíle po vrstvách viz `testing-advanced/test-builders-e2e.md` (Domain ≥ 90 %, Application ≥ 80 %, celkem ≥ 75 %).

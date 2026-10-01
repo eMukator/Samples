@@ -41,9 +41,23 @@ public override async Task<int> SaveChangesAsync(CancellationToken ct = default)
     return await base.SaveChangesAsync(ct);
 }
 
-// Použití — normální delete
+// Použití — normální delete přes change tracker
+var order = await _context.Orders.FindAsync([id], ct);
+if (order is not null)
+{
+    _context.Orders.Remove(order);
+    await _context.SaveChangesAsync(ct);   // → nastaví DeletedAt, fyzicky nesmaže
+}
+
+// ✗ ExecuteDeleteAsync obchází SaveChangesAsync → záznam se smaže FYZICKY
 await _context.Orders.Where(o => o.Id == id).ExecuteDeleteAsync(ct);
-// → Ve skutečnosti nastaví DeletedAt, fyzicky nesmaže
+
+// ✓ Hromadný soft delete — explicitně přes ExecuteUpdateAsync
+await _context.Orders
+    .Where(o => o.CustomerId == customerId)
+    .ExecuteUpdateAsync(s => s
+        .SetProperty(o => o.DeletedAt, _clock.UtcNow)
+        .SetProperty(o => o.DeletedBy, _currentUser.Id), ct);
 
 // Obejití filtru (admin, audit)
 var allIncludingDeleted = await _context.Orders
@@ -109,6 +123,8 @@ public class HttpContextCurrentUser(IHttpContextAccessor accessor) : ICurrentUse
     public string? Name => accessor.HttpContext?.User.FindFirst(ClaimTypes.Name)?.Value;
 }
 ```
+
+> ⚠ `HttpContextCurrentUser` funguje jen v request pipeline (API, MVC, static SSR). V **Blazor Interactive Server**, background jobech a konzumentech zpráv `HttpContext` není → použij settable `CurrentUser` plněný z `AuthenticationState` / zprávy (viz `blazor/blazor-data-state.md`).
 
 ---
 

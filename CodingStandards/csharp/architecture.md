@@ -1,5 +1,7 @@
 # C# — Architektura & Dependency Injection
 
+> Výchozí vrstvená architektura pro **jednoduché CRUD aplikace**. Projekty s business logikou se řídí sadami `ddd/` a `cqrs/`, které mají v případě rozporu přednost (repository per aggregate bez `SaveChanges`, typovaný `Result` s kódem chyby, handlery místo `*Service`). AutoMapper je od 2025 komerční — v nových projektech mapuj ručně nebo přes Mapperly (viz `design-principles/dp-pragmatism.md`).
+
 ## Vrstvová struktura (ASP.NET Core)
 
 ```

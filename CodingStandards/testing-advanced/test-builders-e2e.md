@@ -51,6 +51,16 @@ public sealed class OrderBuilder
     }
 }
 
+// ⚠ DDD agregáty (ddd/ddd-tactical.md) nemají public settery — builder pak NEnastavuje
+//   vlastnosti, ale volá doménové metody, takže testovací data projdou invarianty:
+//   public Order Build()
+//   {
+//       var order = Order.Create(_customerId);
+//       foreach (var l in _lines) order.AddLine(l.ProductId, l.Quantity, l.Price);
+//       if (_confirmed) order.Confirm();
+//       return order;
+//   }
+
 // Použití — velmi čitelné
 var pendingOrder   = new OrderBuilder().Build();
 var confirmedOrder = new OrderBuilder().AsConfirmed().WithId(42).Build();
