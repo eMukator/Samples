@@ -1,0 +1,25 @@
+{
+  "_comment": "Projektova konfigurace hooku. Umisteni: <projekt>/.claude/hooks-config.json. Doplnuje ~/.claude/hooks/hooks-config.json. Ctou ji guard-bash.ps1, guard-write.ps1, build-on-stop.ps1 a cleanup.ps1. Hodnoty nize jsou priklad pro .NET projekt s EF Core a Tailwindem.",
+
+  "port": 5000,
+
+  "denyCommands": [
+    {
+      "pattern": "dotnet\\s+ef\\s+(migrations\\s+(add|remove)|database\\s+(update|drop))",
+      "message": "EF migrace vytvari a spousti jen uzivatel. Uprav model a napis uzivateli, ze migraci musi vytvorit sam."
+    }
+  ],
+
+  "protectedPaths": [
+    {
+      "pattern": "/Migrations/",
+      "message": "Migrace vytvari jen uzivatel. Uprav model a napis uzivateli, ze migraci musi vytvorit sam."
+    },
+    {
+      "pattern": "/wwwroot/css/app\\.css$",
+      "message": "app.css je generovany pri buildu. Styly patri do zdrojoveho input.css."
+    }
+  ],
+
+  "buildOnStop": ["dotnet", "build", "MojeAplikace.sln"]
+}

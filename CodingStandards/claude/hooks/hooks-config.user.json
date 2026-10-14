@@ -1,0 +1,27 @@
+{
+  "_comment": "Uzivatelska konfigurace hooku. Umisteni: ~/.claude/hooks/hooks-config.json. Plati pro vsechny projekty; projektovy soubor <projekt>/.claude/hooks-config.json ji doplnuje.",
+
+  "denyCommands": [
+    {
+      "pattern": "(?<![\\w.\\-/\\\\])(python|python3|py|pip|pip3|node|npm|npx|yarn|pnpm|bun|deno)(?![\\w.\\-])",
+      "message": "Zakazany runtime. Pouzij dotnet script (.csx) nebo pwsh -NoProfile -NonInteractive -File."
+    },
+    {
+      "pattern": "(?<![\\w.\\-/\\\\])powershell(\\.exe)?(?![\\w.\\-])",
+      "message": "Pouzivej pwsh (PowerShell 7), ne powershell (Windows PowerShell 5.1). Vzdy s -NoProfile -NonInteractive -File."
+    }
+  ],
+
+  "longRunning": [],
+
+  "allowPatterns": [],
+
+  "disableRules": [],
+
+  "cleanup": {
+    "dryRun": true,
+    "scannerMaxAgeMinutes": 2,
+    "scannerNames": [],
+    "protectCommandPatterns": []
+  }
+}

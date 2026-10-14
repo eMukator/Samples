@@ -54,14 +54,21 @@ Sady pravidel (Markdown) pro promptování AI asistentů. Stačí v promptu odk�
 
 ## Claude Code: agenti a manažer
 
-Složka [claude](claude/) obsahuje subagenty a slash command pro řízený vývoj:
+Složka [claude](claude/) obsahuje subagenty, slash commandy a hooky pro řízený vývoj. Definice jsou obecné; projektová specifika (spuštění aplikace, účty, checklist reviewera, poučení) patří do projektového profilu.
 
 | Soubor | Role |
 |---|---|
-| [agents/vyvojar.md](claude/agents/vyvojar.md) | Implementuje jeden přesně vymezený úkol |
-| [agents/tester.md](claude/agents/tester.md) | Nezávisle ověří splnění úkolu (funkčně i kvalitativně) |
-| [agents/ui-ux.md](claude/agents/ui-ux.md) | Posoudí UI z hlediska použitelnosti, konzistence a přístupnosti |
-| [commands/manager.md](claude/commands/manager.md) | Rozloží zadání na úkoly a řídí smyčku vývojář → tester (→ ui-ux), commit po každém úkolu |
+| [commands/navrh.md](claude/commands/navrh.md) | `/navrh` – dva nezávislé návrhy řešení (architekt A ∥ B) a srovnání podle matice; vybírá člověk |
+| [commands/manager.md](claude/commands/manager.md) | `/manager` – plán s akceptačními kritérii (schvaluje člověk), smyčka vývojář → reviewer ∥ tester (→ ui-ux), commit a úklid po každém úkolu, stavový soubor |
+| [agents/architekt.md](claude/agents/architekt.md) | Návrh řešení nad skutečným stavem projektu (Opus) |
+| [agents/vyvojar.md](claude/agents/vyvojar.md) | Implementuje jeden úkol včetně testů k AC; necommituje (Sonnet) |
+| [agents/reviewer.md](claude/agents/reviewer.md) | Code review diffu proti pravidlům projektu a pokrytí AC testy; jen čte (Opus) |
+| [agents/tester.md](claude/agents/tester.md) | Ověří chování proti AC – build, testy, běžící aplikace, prohlížeč (Sonnet) |
+| [agents/ui-ux.md](claude/agents/ui-ux.md) | Posoudí UI z hlediska použitelnosti, konzistence a přístupnosti (Sonnet) |
+| [profil.template.md](claude/profil.template.md) | Šablona projektového profilu `.claude/agentic/profil.md` |
+| [hooks/](claude/hooks/) | `guard-bash.ps1` (zákaz skenerů, procesů v popředí, změny portu, příkazů z konfigurace), `guard-write.ps1` (chráněné cesty), `build-on-stop.ps1` (build po vývojáři, chyby mu vrátí), `cleanup.ps1` (osiřelé procesy) |
+
+Lidské brány: výběr varianty (`/navrh`), schválení plánu, vytvoření migrace, eskalace po 3 kolech, push/merge.
 
 ### Instalace
 
@@ -70,20 +77,46 @@ Globálně (pro všechny projekty) zkopírovat do `~/.claude/` (na Windows `%USE
 ```powershell
 Copy-Item CodingStandards\claude\agents\*.md   $HOME\.claude\agents\
 Copy-Item CodingStandards\claude\commands\*.md $HOME\.claude\commands\
+New-Item -ItemType Directory -Force $HOME\.claude\hooks | Out-Null
+Copy-Item CodingStandards\claude\hooks\*.ps1   $HOME\.claude\hooks\
+Copy-Item CodingStandards\claude\hooks\hooks-config.user.json $HOME\.claude\hooks\hooks-config.json
 ```
 
-Jen pro jeden projekt zkopírovat do `.claude/agents/` a `.claude/commands/` v kořeni daného repa. Po zkopírování restartovat Claude Code; kontrola přes `/agents` (výpis agentů) a `/` (nabídka commandů).
+Hooky zaregistrovat v `~/.claude/settings.json` (`cleanup.ps1` má v `hooks-config.json` výchozí `"dryRun": true` – nejdřív jen loguje do `.scratch/cleanup.log`):
+
+```json
+"hooks": {
+  "PreToolUse": [
+    { "matcher": "Bash", "hooks": [{ "type": "command", "command": "pwsh -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"$HOME/.claude/hooks/guard-bash.ps1\"" }] },
+    { "matcher": "Write|Edit|NotebookEdit", "hooks": [{ "type": "command", "command": "pwsh -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"$HOME/.claude/hooks/guard-write.ps1\"" }] }
+  ],
+  "SubagentStop": [
+    { "matcher": "vyvojar", "hooks": [{ "type": "command", "command": "pwsh -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"$HOME/.claude/hooks/build-on-stop.ps1\"", "timeout": 300 }] },
+    { "hooks": [{ "type": "command", "command": "pwsh -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"$HOME/.claude/hooks/cleanup.ps1\"" }] }
+  ],
+  "Stop": [
+    { "hooks": [{ "type": "command", "command": "pwsh -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"$HOME/.claude/hooks/cleanup.ps1\"" }] }
+  ]
+}
+```
+
+V projektu:
+
+1. `claude/profil.template.md` → `.claude/agentic/profil.md` a vyplnit.
+2. `claude/hooks/hooks-config.example.json` → `.claude/hooks-config.json` a upravit (port, zakázané příkazy, chráněné cesty, `buildOnStop`).
+3. Do `.gitignore` přidat `/.claude/runs/` a `/.scratch/`.
+
+Projektový `.claude/agents/<jméno>.md` přebíjí globální – projektová specifika proto nepiš do kopií agentů, ale do profilu, jinak se globální opravy nepropíšou. Po instalaci restartovat Claude Code; kontrola přes `/agents` a `/`.
 
 ### Použití
 
 1. Sepsat zadání do Markdown souboru, např. `zadani.md`.
-2. V Claude Code spustit:
-   ```
-   /manager zadani.md
-   ```
-3. Manažer sám kód nečte ani needituje: rozloží zadání na úkoly, volá `vyvojar`, výsledek ověří `tester` (u UI úkolů i `ui-ux`), po úspěchu nechá commitnout. Po 3 neúspěšných pokusech na stejném úkolu se zastaví a čeká na instrukce.
+2. U větší feature nejdřív `/navrh zadani.md`, vybrat variantu; zvolené řešení se zapíše do zadání.
+3. `/manager zadani.md` – manažer kód nečte ani needituje: navrhne úkoly s akceptačními kritérii a čeká na schválení, pak volá `vyvojar`, souběžně `reviewer` a `tester` (u UI úkolů pak `ui-ux`), po úspěchu commitne a uklidí pracovní složku úkolu. Po 3 neúspěšných kolech se zastaví a čeká na instrukce.
+4. Po přerušení (nová session, kompakce kontextu) `/manager zadani.md pokračuj` – naváže podle `.claude/runs/<slug>/stav.md`.
+5. Na konci manažer navrhne poučení do profilu; zapíše je až po souhlasu.
 
-Agenty lze volat i samostatně, např. „nech agenta tester ověřit poslední změny".
+Agenty lze volat i samostatně, např. „nech agenta reviewer projít poslední změny".
 
 ## Použití v promptu
 

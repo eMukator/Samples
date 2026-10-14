@@ -2,3 +2,5 @@
 /WpfApp/obj/
 /WpfApp/bin/
 *.user
+
+.scratch/
